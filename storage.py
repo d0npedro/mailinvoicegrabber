@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 from classifier import ClassificationResult
-from utils import sanitize_filename, sanitize_vendor_name
+from utils import sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -151,19 +151,20 @@ class Storage:
         """
         Persist an invoice attachment to the structured directory.
 
-        Path: <base_dir>/<year>/<vendor>/<invoice_number>_<date>_<amount>_<currency>.<ext>
+        Path: <base_dir>/<year>/<invoice_number>_<date>_<amount>_<currency>.<ext>
+        Multi-account: <base_dir>/<label>/<year>/<invoice_number>_…
 
+        All invoices for the same year land in a single flat folder.
+        Vendor is still captured in the filename and the CSV summary.
         Falls back to the original filename when metadata is incomplete.
-        Also records the entry for the CSV summary.
         """
         ext = Path(filename).suffix.lower() or ".pdf"
-        vendor_dir = sanitize_vendor_name(classification.vendor)
-        # Multi-account: base_dir / label / year / vendor
-        # Single-account: base_dir / year / vendor  (backward-compatible)
+        # Multi-account: base_dir / label / year
+        # Single-account: base_dir / year
         if self._account_label:
-            output_dir = self.base_dir / self._account_label / str(self.year) / vendor_dir
+            output_dir = self.base_dir / self._account_label / str(self.year)
         else:
-            output_dir = self.base_dir / str(self.year) / vendor_dir
+            output_dir = self.base_dir / str(self.year)
 
         # Build output filename from metadata when available
         has_meta = (
