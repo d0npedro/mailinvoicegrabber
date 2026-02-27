@@ -117,6 +117,11 @@ class Storage:
     def increment_errors(self) -> None:
         self.error_count += 1
 
+    @property
+    def records(self) -> list[InvoiceRecord]:
+        """Read-only view of all invoice records collected this run."""
+        return list(self._records)
+
     # ------------------------------------------------------------------
     # Invoice saving
     # ------------------------------------------------------------------

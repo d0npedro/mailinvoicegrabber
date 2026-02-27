@@ -30,6 +30,7 @@ load_dotenv()
 
 from imap_client import IMAPClient  # noqa: E402
 from storage import Storage  # noqa: E402
+from tax_export import export_tax_folders  # noqa: E402
 from utils import setup_logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Classify and report invoices but do NOT write any files",
+    )
+    parser.add_argument(
+        "--tax-export-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help=(
+            "Root directory for ABSETZBAR / NICHT_ABSETZBAR export folders. "
+            "Defaults to the parent of --output-dir (i.e. the project root). "
+            "Pass --no-tax-export to skip this step."
+        ),
+    )
+    parser.add_argument(
+        "--no-tax-export",
+        action="store_true",
+        help="Skip the post-processing tax classification export step",
     )
     return parser
 
@@ -122,11 +139,15 @@ def main() -> None:
     _validate_env()
     _validate_year(args.year)
 
+    tax_export_root = args.tax_export_dir or args.output_dir.parent
+
     logger.info("=" * 60)
     logger.info("Mail Invoice Scanner")
     logger.info(f"  Scanning year  : {args.year}")
     logger.info(f"  Output dir     : {args.output_dir.resolve()}")
     logger.info(f"  Dry-run mode   : {args.dry_run}")
+    if not args.no_tax_export:
+        logger.info(f"  Tax export dir : {tax_export_root.resolve()}")
     logger.info("=" * 60)
 
     storage = Storage(
@@ -142,6 +163,7 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.info("Interrupted by user — saving progress and exiting")
         storage.write_summary()
+        _run_tax_export(storage, args, tax_export_root)
         sys.exit(0)
 
     except Exception as exc:
@@ -162,6 +184,45 @@ def main() -> None:
 
     if storage.invoice_count > 0:
         logger.info(f"Summary CSV → {storage.summary_path}")
+
+    _run_tax_export(storage, args, tax_export_root)
+
+
+def _run_tax_export(storage: Storage, args: argparse.Namespace, tax_export_root: Path) -> None:
+    """Run the post-processing tax classification export (unless skipped)."""
+    if args.no_tax_export:
+        return
+    if args.dry_run:
+        logger.info("Tax export skipped in dry-run mode (no files were saved)")
+        return
+    if storage.invoice_count == 0:
+        logger.info("Tax export skipped — no invoices were saved this run")
+        return
+
+    logger.info("=" * 60)
+    logger.info("Tax Classification Export")
+    logger.info(f"  Source : {args.output_dir.resolve()}")
+    logger.info(f"  Target : {tax_export_root.resolve()}")
+    logger.info("=" * 60)
+
+    try:
+        summary = export_tax_folders(
+            invoices_root=args.output_dir,
+            output_root=tax_export_root,
+            records=storage.records,
+        )
+    except Exception as exc:
+        logger.exception(f"Tax export failed: {exc}")
+        return
+
+    logger.info("Tax export complete")
+    logger.info(f"  Total invoices processed : {summary.total}")
+    logger.info(f"  Deductible (ABSETZBAR)   : {summary.deductible}")
+    logger.info(f"  Not deductible           : {summary.not_deductible}")
+    if summary.errors:
+        logger.warning(f"  Copy errors              : {summary.errors}")
+    logger.info(f"  → {tax_export_root / 'ABSETZBAR'}")
+    logger.info(f"  → {tax_export_root / 'NICHT_ABSETZBAR'}")
 
 
 if __name__ == "__main__":
