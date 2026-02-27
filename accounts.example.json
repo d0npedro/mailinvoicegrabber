@@ -1,0 +1,18 @@
+[
+  {
+    "label":    "gmail_work",
+    "host":     "imap.gmail.com",
+    "port":     993,
+    "user":     "you@work.com",
+    "password": "${GMAIL_WORK_PASSWORD}",
+    "folder":   "INBOX"
+  },
+  {
+    "label":    "outlook_personal",
+    "host":     "outlook.office365.com",
+    "port":     993,
+    "user":     "you@personal.com",
+    "password": "${OUTLOOK_PERSONAL_PASSWORD}",
+    "folder":   "INBOX"
+  }
+]

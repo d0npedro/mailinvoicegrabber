@@ -12,10 +12,10 @@ import email
 import email.header
 import imaplib
 import logging
-import os
 from email.message import Message
 from typing import Generator, Optional
 
+from accounts import AccountConfig
 from classifier import InvoiceClassifier
 from extractor import TextExtractor
 from storage import Storage
@@ -31,20 +31,20 @@ _PROGRESS_INTERVAL: int = 50                    # log progress every N emails
 
 class IMAPClient:
     """
-    Manages an IMAP4_SSL session.
+    Manages an IMAP4_SSL session for a single :class:`~accounts.AccountConfig`.
 
     Usage::
 
-        with IMAPClient() as client:
+        with IMAPClient(account) as client:
             client.process_emails(year=2024, storage=storage)
     """
 
-    def __init__(self) -> None:
-        self._host: str = os.environ["IMAP_HOST"]
-        self._port: int = int(os.environ.get("IMAP_PORT", "993"))
-        self._user: str = os.environ["IMAP_USER"]
-        self._password: str = os.environ["IMAP_PASSWORD"]
-        self._folder: str = os.environ.get("IMAP_FOLDER", "INBOX")
+    def __init__(self, account: AccountConfig) -> None:
+        self._host: str = account.host
+        self._port: int = account.port
+        self._user: str = account.user
+        self._password: str = account.password
+        self._folder: str = account.folder
         self._conn: Optional[imaplib.IMAP4_SSL] = None
         self._extractor = TextExtractor()
         self._classifier = InvoiceClassifier()

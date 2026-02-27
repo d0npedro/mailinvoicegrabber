@@ -5,6 +5,7 @@ env/
 
 # Credentials — never commit
 .env
+accounts.json
 
 # Runtime state
 processed.json

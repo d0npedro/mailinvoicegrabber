@@ -51,13 +51,27 @@ class InvoiceRecord:
 class Storage:
     """Manages invoice persistence, UID deduplication, and the CSV summary."""
 
-    def __init__(self, base_dir: Path, year: int, dry_run: bool = False) -> None:
+    def __init__(
+        self,
+        base_dir: Path,
+        year: int,
+        dry_run: bool = False,
+        account_label: str = "",
+    ) -> None:
         self.base_dir = base_dir
         self.year = year
         self.dry_run = dry_run
-        self.summary_path = Path(f"invoices_summary_{year}.csv")
+        self._account_label = account_label
 
-        self._year_key = str(year)
+        # When a label is set, namespace both the CSV name and the UID key so
+        # multiple accounts never collide in the same processed.json.
+        if account_label:
+            self.summary_path = Path(f"invoices_summary_{account_label}_{year}.csv")
+            self._year_key = f"{account_label}:{year}"
+        else:
+            self.summary_path = Path(f"invoices_summary_{year}.csv")
+            self._year_key = str(year)
+
         self._processed_all: dict[str, list[str]] = self._load_processed_file()
         self._processed_set: set[str] = set(
             self._processed_all.get(self._year_key, [])
@@ -144,7 +158,12 @@ class Storage:
         """
         ext = Path(filename).suffix.lower() or ".pdf"
         vendor_dir = sanitize_vendor_name(classification.vendor)
-        output_dir = self.base_dir / str(self.year) / vendor_dir
+        # Multi-account: base_dir / label / year / vendor
+        # Single-account: base_dir / year / vendor  (backward-compatible)
+        if self._account_label:
+            output_dir = self.base_dir / self._account_label / str(self.year) / vendor_dir
+        else:
+            output_dir = self.base_dir / str(self.year) / vendor_dir
 
         # Build output filename from metadata when available
         has_meta = (
